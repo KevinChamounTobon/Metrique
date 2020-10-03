@@ -1,4 +1,3 @@
-import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.ConstructorDeclaration;
@@ -6,24 +5,20 @@ import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.visitor.VoidVisitor;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
+import com.github.javaparser.utils.ParserCollectionStrategy;
+import com.github.javaparser.utils.ProjectRoot;
+import com.github.javaparser.utils.SourceRoot;
 
-import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
 
 public class LineCalculator {
 
-    private CompilationUnit cu;
-
-    //Constructor
-    public LineCalculator(String path) throws FileNotFoundException {
-        this.cu =  StaticJavaParser.parse(new File(path));
-    }
-
-    //Getter
-    public CompilationUnit getCu() {
-        return this.cu;
-    }
+    public static String answer = "";
 
     //General version of LOC
     public static int LOC(String[] lines) {
@@ -33,7 +28,7 @@ public class LineCalculator {
                 ++count;
             }
         }
-        System.out.println("LOC: " + count);
+
         return count;
     }
 
@@ -47,7 +42,7 @@ public class LineCalculator {
                 ++count;
             }
         }
-        System.out.println("CLOC: " + count);
+       // System.out.println("CLOC: " + count);
         return count;
     }
 
@@ -59,19 +54,47 @@ public class LineCalculator {
                 line.matches("^\\/\\*\\*.*"); //Match block comment
     }
 
-    public static void main(String[] args) throws IOException {
-        int count = 0;
-        //Create calculator object
-        LineCalculator calc = new LineCalculator("/home/unknown/Documents/projects/Flappy Ghost/src/Coin.java");
-        //Create visitor for classes
-        VoidVisitor<?> classLinesVisitor = new ClassesLineCounter();
+    public static void write(String fileName, String output) {
+        try {
+            FileWriter fw = new FileWriter(fileName);
+            BufferedWriter bw = new BufferedWriter(fw);
 
-        //Call visit method for classes
-        classLinesVisitor.visit(calc.getCu(), null);
+            bw.append(output);
+            bw.close();
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+
+        Path projectPath = Paths.get("/home/unknown/Documents/projects/Flappy Ghost");
+        ProjectRoot projectRoot = new ParserCollectionStrategy().collect(projectPath);
+        List<SourceRoot>  srcRoots = projectRoot.getSourceRoots();
+        for (SourceRoot sourceRoot: srcRoots) {
+            sourceRoot.tryToParse();
+            List<CompilationUnit> compilations = sourceRoot.getCompilationUnits();
+            for (CompilationUnit n: compilations) {
+                //Create visitor for classes
+                VoidVisitor<?> classLinesVisitor = new ClassesLineCounter(n.getStorage().get().getPath().toString());
+                //Call visit method for classes
+                answer +=  "chemin, class, classe_LOC, classe_CLOC, classe_DC, WMC, classe_BC\n";
+                classLinesVisitor.visit(n, null);
+                //Call visit method for methods
+                answer += "\n";
+            }
+        }
+       write("output.csv", answer);
     }
 
     //Implementation of the line visitor for classes
     private static class ClassesLineCounter extends VoidVisitorAdapter<Void> {
+
+        private String path;
+
+        public ClassesLineCounter(String path) {
+            this.path = path;
+        }
 
         public int class_LOC(String[] lines) {
             return LineCalculator.LOC(lines);
@@ -81,8 +104,29 @@ public class LineCalculator {
             return LineCalculator.CLOC(lines);
         }
 
-        public void class_DC(String[] lines) {
-            System.out.println("DC: " + (float)class_CLOC(lines) / class_LOC(lines));
+        public float class_DC(String[] lines) {
+            return (float)class_CLOC(lines) / class_LOC(lines);
+        }
+
+        public int WMC(ClassOrInterfaceDeclaration cd) {
+            int wmc = 0;
+            List<MethodDeclaration> methods = cd.getMethods();
+            List<ConstructorDeclaration> constructors = cd.getConstructors();
+
+            for (MethodDeclaration md: methods) {
+                if(md.getBody().isPresent()) {
+                    wmc += md.getBody().get().getStatements().size();
+                }
+            }
+
+            for (ConstructorDeclaration consDec: constructors) {
+                    wmc += consDec.getBody().getStatements().size();
+                }
+            return wmc;
+        }
+
+        public String printInfo(String[] lines,String className ) {
+            return this.path + ", " + className + ", " + class_LOC(lines) + ", " + class_CLOC(lines) + ", " + class_DC(lines);
         }
 
         //Visit the classes or interfaces declaration
@@ -90,8 +134,8 @@ public class LineCalculator {
         public void visit(ClassOrInterfaceDeclaration cd, Void arg) {
             super.visit(cd, arg);
             String[] lines = cd.toString().split("\n");
-            System.out.println("-----" + cd.getName() + "-----");
-            class_DC(lines);
+            int wmc = WMC(cd);
+            answer += printInfo(lines, cd.getNameAsString()) + ", " + wmc + ", " + class_DC(lines)/wmc + "\n";
         }
 
         //Visit the enumerators declarations
@@ -99,8 +143,7 @@ public class LineCalculator {
         public void visit(EnumDeclaration ed, Void arg) {
             super.visit(ed, arg);
             String[] lines = ed.toString().split("\n");
-            System.out.println("-----" + ed.getName() + "-----");
-            class_DC(lines);
+            answer += printInfo(lines, ed.getNameAsString()) + ", 1" + ", " + class_DC(lines) + "\n";
         }
     }
 }

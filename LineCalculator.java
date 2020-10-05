@@ -1,8 +1,5 @@
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.ConstructorDeclaration;
-import com.github.javaparser.ast.body.EnumDeclaration;
-import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.visitor.VoidVisitor;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import com.github.javaparser.utils.ParserCollectionStrategy;
@@ -21,6 +18,7 @@ public class LineCalculator {
     public static String answer = "";
 
     //General version of LOC
+    //NEED TESTING
     public static int LOC(String[] lines) {
         int count = 0;
         for (String line : lines) {
@@ -28,11 +26,11 @@ public class LineCalculator {
                 ++count;
             }
         }
-
         return count;
     }
 
     //General version of CLOC
+    //NEED TESTING
     public static int CLOC(String[] lines) {
         int count = 0;
         for (String line : lines) {
@@ -42,11 +40,12 @@ public class LineCalculator {
                 ++count;
             }
         }
-        // System.out.println("CLOC: " + count);
+       // System.out.println("CLOC: " + count);
         return count;
     }
 
     //Check if line is a comment
+    //NEED TESTING
     private static boolean isComment(String line) {
         return  line.matches("^\\/\\/.*") ||  //Match single line comment
                 line.matches("^\\/\\*.*") ||  //Match block comment
@@ -54,7 +53,7 @@ public class LineCalculator {
                 line.matches("^\\/\\*\\*.*"); //Match block comment
     }
 
-    public static void write(String fileName, String output) {
+    private static void write(String fileName, String output) {
         try {
             FileWriter fw = new FileWriter(fileName);
             BufferedWriter bw = new BufferedWriter(fw);
@@ -88,14 +87,15 @@ public class LineCalculator {
                 answer += "\n";
             }
         }
-        write("output.csv", answer);
+       write("output.csv", answer);
     }
 
-    //Implementation of the line visitor for methods
-    private static class MethodsLineCounter extends VoidVisitorAdapter<Void> {
+     //Implementation of the line visitor for methods
+     private static class MethodsLineCounter extends VoidVisitorAdapter<Void> {
 
         private String path = "";
 
+        //Constructor
         public MethodsLineCounter(String path) {
             this.path = path;
         }
@@ -108,23 +108,41 @@ public class LineCalculator {
             return LineCalculator.CLOC(lines);
         }
 
+        //NEED TESTING
         public float method_DC(String[] lines) {
             return (float)method_CLOC(lines) / method_LOC(lines);
         }
 
+        //NEED TESTING
         public String printInfo(String[] lines,String methodName) {
             return this.path + ", class, " + methodName + ", " + method_LOC(lines) + ", " + method_CLOC(lines) + ", " + method_DC(lines);
         }
 
         //Visit the methods declarations
+         @Override
+         public void visit(MethodDeclaration md, Void arg) {
+             super.visit(md, arg);
+             String[] lines = md.toString().split("\n");
+             String methodeName = md.getName().asString();
+             String methodeParam = "";
+
+             for (Parameter type : md.getParameters()) {
+                 methodeParam += "_" + type.getTypeAsString();
+             }
+
+             if(md.getBody().isPresent()) {
+                 int statementCount = md.getBody().get().getStatements().size();
+                 answer += printInfo(lines, methodeName + methodeParam) + ", " + statementCount + ", " + method_DC(lines)/statementCount + "\n";
+             }
+         }
+
+         //Visit the constructors declarations
         @Override
-        public void visit(MethodDeclaration md, Void arg) {
-            super.visit(md, arg);
-            String[] lines = md.toString().split("\n");
-            if(md.getBody().isPresent()) {
-                int statementCount = md.getBody().get().getStatements().size();
-                answer += printInfo(lines, md.getName().asString()) + ", " + statementCount + ", " + method_DC(lines)/statementCount + "\n";
-            }
+        public void visit(ConstructorDeclaration cd, Void arg) {
+            super.visit(cd, arg);
+            String[] lines = cd.toString().split("\n");
+            int statementCount = cd.getBody().getStatements().size();
+            answer += printInfo(lines, cd.getName().asString()) + ", " + statementCount + ", " + method_DC(lines)/statementCount + "\n";
         }
     }
 
@@ -145,10 +163,12 @@ public class LineCalculator {
             return LineCalculator.CLOC(lines);
         }
 
+        //NEED TESTING
         public float class_DC(String[] lines) {
             return (float)class_CLOC(lines) / class_LOC(lines);
         }
 
+        //NEED TESTING
         public int WMC(ClassOrInterfaceDeclaration cd) {
             int wmc = 0;
             List<MethodDeclaration> methods = cd.getMethods();
@@ -161,12 +181,13 @@ public class LineCalculator {
             }
 
             for (ConstructorDeclaration consDec: constructors) {
-                wmc += consDec.getBody().getStatements().size();
-            }
+                    wmc += consDec.getBody().getStatements().size();
+                }
             return wmc;
         }
 
-        public String printInfo(String[] lines,String className ) {
+        //NEED TESTING
+        public String printInfo(String[] lines, String className) {
             return this.path + ", " + className + ", " + class_LOC(lines) + ", " + class_CLOC(lines) + ", " + class_DC(lines);
         }
 

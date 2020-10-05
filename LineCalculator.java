@@ -15,7 +15,8 @@ import java.util.List;
 
 public class LineCalculator {
 
-    public static String answer = "";
+    public static String classCSV = "";
+    public static String methodCSV = "";
 
     //General version of LOC
     //NEED TESTING
@@ -40,7 +41,7 @@ public class LineCalculator {
                 ++count;
             }
         }
-       // System.out.println("CLOC: " + count);
+        // System.out.println("CLOC: " + count);
         return count;
     }
 
@@ -79,19 +80,21 @@ public class LineCalculator {
                 //Create visitor for classes
                 VoidVisitor<?> classLinesVisitor = new ClassesLineCounter(n.getStorage().get().getPath().toString());
                 //Call visit method for classes
-                answer +=  "chemin, class, classe_LOC, classe_CLOC, classe_DC, WMC, classe_BC\n";
+                classCSV +=  "chemin, class, classe_LOC, classe_CLOC, classe_DC, WMC, classe_BC\n";
                 classLinesVisitor.visit(n, null);
+                classCSV += "\n";
                 //Call visit method for methods
-                answer += "chemin, class, methode, methode_LOC, methode_CLOC, methode_DC, CC, methode_BC\n";
+                methodCSV += "chemin, class, methode, methode_LOC, methode_CLOC, methode_DC, CC, methode_BC\n";
                 methodLinesVisitor.visit(n, null);
-                answer += "\n";
+                methodCSV += "\n";
             }
         }
-       write("output.csv", answer);
+        write("classes.csv", classCSV);
+        write("methodes.csv", methodCSV);
     }
 
-     //Implementation of the line visitor for methods
-     private static class MethodsLineCounter extends VoidVisitorAdapter<Void> {
+    //Implementation of the line visitor for methods
+    private static class MethodsLineCounter extends VoidVisitorAdapter<Void> {
 
         private String path = "";
 
@@ -119,30 +122,30 @@ public class LineCalculator {
         }
 
         //Visit the methods declarations
-         @Override
-         public void visit(MethodDeclaration md, Void arg) {
-             super.visit(md, arg);
-             String[] lines = md.toString().split("\n");
-             String methodeName = md.getName().asString();
-             String methodeParam = "";
+        @Override
+        public void visit(MethodDeclaration md, Void arg) {
+            super.visit(md, arg);
+            String[] lines = md.toString().split("\n");
+            String methodeName = md.getName().asString();
+            String methodeParam = "";
 
-             for (Parameter type : md.getParameters()) {
-                 methodeParam += "_" + type.getTypeAsString();
-             }
+            for (Parameter type : md.getParameters()) {
+                methodeParam += "_" + type.getTypeAsString();
+            }
 
-             if(md.getBody().isPresent()) {
-                 int statementCount = md.getBody().get().getStatements().size();
-                 answer += printInfo(lines, methodeName + methodeParam) + ", " + statementCount + ", " + method_DC(lines)/statementCount + "\n";
-             }
-         }
+            if(md.getBody().isPresent()) {
+                int statementCount = md.getBody().get().getStatements().size();
+                methodCSV += printInfo(lines, methodeName + methodeParam) + ", " + statementCount + ", " + method_DC(lines)/statementCount + "\n";
+            }
+        }
 
-         //Visit the constructors declarations
+        //Visit the constructors declarations
         @Override
         public void visit(ConstructorDeclaration cd, Void arg) {
             super.visit(cd, arg);
             String[] lines = cd.toString().split("\n");
             int statementCount = cd.getBody().getStatements().size();
-            answer += printInfo(lines, cd.getName().asString()) + ", " + statementCount + ", " + method_DC(lines)/statementCount + "\n";
+            methodCSV += printInfo(lines, cd.getName().asString()) + ", " + statementCount + ", " + method_DC(lines)/statementCount + "\n";
         }
     }
 
@@ -181,8 +184,8 @@ public class LineCalculator {
             }
 
             for (ConstructorDeclaration consDec: constructors) {
-                    wmc += consDec.getBody().getStatements().size();
-                }
+                wmc += consDec.getBody().getStatements().size();
+            }
             return wmc;
         }
 
@@ -197,7 +200,7 @@ public class LineCalculator {
             super.visit(cd, arg);
             String[] lines = cd.toString().split("\n");
             int wmc = WMC(cd);
-            answer += printInfo(lines, cd.getNameAsString()) + ", " + wmc + ", " + class_DC(lines)/wmc + "\n";
+            classCSV += printInfo(lines, cd.getNameAsString()) + ", " + wmc + ", " + class_DC(lines)/wmc + "\n";
         }
 
         //Visit the enumerators declarations
@@ -205,7 +208,7 @@ public class LineCalculator {
         public void visit(EnumDeclaration ed, Void arg) {
             super.visit(ed, arg);
             String[] lines = ed.toString().split("\n");
-            answer += printInfo(lines, ed.getNameAsString()) + ", 1" + ", " + class_DC(lines) + "\n";
+            classCSV += printInfo(lines, ed.getNameAsString()) + ", 1" + ", " + class_DC(lines) + "\n";
         }
     }
 }

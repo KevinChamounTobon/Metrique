@@ -42,7 +42,7 @@ public class LineCalculator {
                 ++count;
             }
         }
-       // System.out.println("CLOC: " + count);
+        // System.out.println("CLOC: " + count);
         return count;
     }
 
@@ -75,16 +75,57 @@ public class LineCalculator {
             sourceRoot.tryToParse();
             List<CompilationUnit> compilations = sourceRoot.getCompilationUnits();
             for (CompilationUnit n: compilations) {
+                //Create visitor for methods
+                VoidVisitor<?> methodLinesVisitor = new MethodsLineCounter(n.getStorage().get().getPath().toString());
                 //Create visitor for classes
                 VoidVisitor<?> classLinesVisitor = new ClassesLineCounter(n.getStorage().get().getPath().toString());
                 //Call visit method for classes
                 answer +=  "chemin, class, classe_LOC, classe_CLOC, classe_DC, WMC, classe_BC\n";
                 classLinesVisitor.visit(n, null);
                 //Call visit method for methods
+                answer += "chemin, class, methode, methode_LOC, methode_CLOC, methode_DC, CC, methode_BC\n";
+                methodLinesVisitor.visit(n, null);
                 answer += "\n";
             }
         }
-       write("output.csv", answer);
+        write("output.csv", answer);
+    }
+
+    //Implementation of the line visitor for methods
+    private static class MethodsLineCounter extends VoidVisitorAdapter<Void> {
+
+        private String path = "";
+
+        public MethodsLineCounter(String path) {
+            this.path = path;
+        }
+
+        public int method_LOC(String[] lines) {
+            return LineCalculator.LOC(lines);
+        }
+
+        public int method_CLOC(String[] lines) {
+            return LineCalculator.CLOC(lines);
+        }
+
+        public float method_DC(String[] lines) {
+            return (float)method_CLOC(lines) / method_LOC(lines);
+        }
+
+        public String printInfo(String[] lines,String methodName) {
+            return this.path + ", class, " + methodName + ", " + method_LOC(lines) + ", " + method_CLOC(lines) + ", " + method_DC(lines);
+        }
+
+        //Visit the methods declarations
+        @Override
+        public void visit(MethodDeclaration md, Void arg) {
+            super.visit(md, arg);
+            String[] lines = md.toString().split("\n");
+            if(md.getBody().isPresent()) {
+                int statementCount = md.getBody().get().getStatements().size();
+                answer += printInfo(lines, md.getName().asString()) + ", " + statementCount + ", " + method_DC(lines)/statementCount + "\n";
+            }
+        }
     }
 
     //Implementation of the line visitor for classes
@@ -120,8 +161,8 @@ public class LineCalculator {
             }
 
             for (ConstructorDeclaration consDec: constructors) {
-                    wmc += consDec.getBody().getStatements().size();
-                }
+                wmc += consDec.getBody().getStatements().size();
+            }
             return wmc;
         }
 

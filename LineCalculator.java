@@ -13,13 +13,33 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
+/**
+ * authors: Kevin Chamoun-Tobon & Christian El-Hamaoui
+ *
+ * Static class for metric calculation
+ */
 public class LineCalculator {
 
-    public static String classCSV = "";
-    public static String methodCSV = "";
+    public static String classCSV = "";  //Global variable for classes information
+    public static String methodCSV = ""; //Global variable for methods information
 
-    //General version of LOC
-    //NEED TESTING
+    public static void main(String[] args) throws IOException {
+
+        Path projectPath = Paths.get("/home/unknown/Documents/projects/Flappy Ghost");
+        ProjectRoot projectRoot = new ParserCollectionStrategy().collect(projectPath);
+        List<SourceRoot>  srcRoots = projectRoot.getSourceRoots();
+
+        LineCalculator.parseJavaProject(srcRoots);
+
+        write("classes.csv", classCSV);
+        write("methodes.csv", methodCSV);
+    }
+
+    /**
+     * Checks ammount of non empty lines of code
+     * @param lines array of strings containing lines of java code
+     * @return count of non empty lines of code
+     */
     public static int LOC(String[] lines) {
         int count = 0;
         for (String line : lines) {
@@ -30,8 +50,11 @@ public class LineCalculator {
         return count;
     }
 
-    //General version of CLOC
-    //NEED TESTING
+    /**
+     * Checks amount of comments
+     * @param lines array of strings containing lines of java code
+     * @return count of comments
+     */
     public static int CLOC(String[] lines) {
         int count = 0;
         for (String line : lines) {
@@ -41,12 +64,14 @@ public class LineCalculator {
                 ++count;
             }
         }
-        // System.out.println("CLOC: " + count);
         return count;
     }
 
-    //Check if line is a comment
-    //NEED TESTING
+    /**
+     * Checks if line is a comment
+     * @param line String representing java code
+     * @return if a line is a comment
+     */
     private static boolean isComment(String line) {
         return  line.matches("^\\/\\/.*") ||  //Match single line comment
                 line.matches("^\\/\\*.*") ||  //Match block comment
@@ -54,6 +79,11 @@ public class LineCalculator {
                 line.matches("^\\/\\*\\*.*"); //Match block comment
     }
 
+    /**
+     * All purpose writer
+     * @param fileName The name of the file to create
+     * @param output Then content of the file to create
+     */
     private static void write(String fileName, String output) {
         try {
             FileWriter fw = new FileWriter(fileName);
@@ -66,11 +96,12 @@ public class LineCalculator {
         }
     }
 
-    public static void main(String[] args) throws IOException {
-
-        Path projectPath = Paths.get("/home/unknown/Documents/projects/Flappy Ghost");
-        ProjectRoot projectRoot = new ParserCollectionStrategy().collect(projectPath);
-        List<SourceRoot>  srcRoots = projectRoot.getSourceRoots();
+    /**
+     * Parse the java file
+     * @param srcRoots List of all src directory in project
+     * @throws IOException If file not found
+     */
+    public static void parseJavaProject(List<SourceRoot> srcRoots) throws IOException {
         for (SourceRoot sourceRoot: srcRoots) {
             sourceRoot.tryToParse();
             List<CompilationUnit> compilations = sourceRoot.getCompilationUnits();
@@ -89,39 +120,49 @@ public class LineCalculator {
                 methodCSV += "\n";
             }
         }
-        write("classes.csv", classCSV);
-        write("methodes.csv", methodCSV);
     }
 
-    //Implementation of the line visitor for methods
+    /**
+     * Nested class made to visit methods declaration
+     */
     private static class MethodsLineCounter extends VoidVisitorAdapter<Void> {
 
         private String path = "";
 
-        //Constructor
+        /**
+         * Constructor
+         * @param path Path of the project
+         */
         public MethodsLineCounter(String path) {
             this.path = path;
         }
 
-        public int method_LOC(String[] lines) {
-            return LineCalculator.LOC(lines);
-        }
-
-        public int method_CLOC(String[] lines) {
-            return LineCalculator.CLOC(lines);
-        }
-
-        //NEED TESTING
+        /**
+         * Calculates the DC for a methode
+         * @param lines array of strings containing lines of java code
+         * @return returns the DC for a methode
+         */
         public float method_DC(String[] lines) {
-            return (float)method_CLOC(lines) / method_LOC(lines);
+            return (float)LineCalculator.CLOC(lines) / LineCalculator.LOC(lines);
         }
 
-        //NEED TESTING
+        /**
+         * Gets the general info for the csv file of methodes
+         * @param lines array of strings containing lines of java code
+         * @param methodName The name of the methode
+         * @return Returns the info for the csv
+         */
         public String printInfo(String[] lines,String methodName) {
-            return this.path + ", class, " + methodName + ", " + method_LOC(lines) + ", " + method_CLOC(lines) + ", " + method_DC(lines);
+            return this.path + ", class, " + methodName + ", " + LineCalculator.LOC(lines)  + ", "
+                    + LineCalculator.CLOC(lines) + ", "
+                    + method_DC(lines);
         }
 
-        //Visit the methods declarations
+        /**
+         * Override the API visitor to visit methode declaration
+         * @param md A methode declaration
+         * @param arg Null argument
+         */
         @Override
         public void visit(MethodDeclaration md, Void arg) {
             super.visit(md, arg);
@@ -135,43 +176,57 @@ public class LineCalculator {
 
             if(md.getBody().isPresent()) {
                 int statementCount = md.getBody().get().getStatements().size();
-                methodCSV += printInfo(lines, methodeName + methodeParam) + ", " + statementCount + ", " + method_DC(lines)/statementCount + "\n";
+                float methodeBC = method_DC(lines)/statementCount;
+                methodCSV += printInfo(lines, methodeName + methodeParam) +  ", " + statementCount +
+                        ", " + methodeBC + "\n";
             }
         }
 
-        //Visit the constructors declarations
+        /**
+         * Override the API visitor to visit constructor declaration
+         * @param cd A constructor declaration
+         * @param arg Null argument
+         */
         @Override
         public void visit(ConstructorDeclaration cd, Void arg) {
             super.visit(cd, arg);
             String[] lines = cd.toString().split("\n");
             int statementCount = cd.getBody().getStatements().size();
-            methodCSV += printInfo(lines, cd.getName().asString()) + ", " + statementCount + ", " + method_DC(lines)/statementCount + "\n";
+            float methodeBC = method_DC(lines)/statementCount;
+            methodCSV += printInfo(lines, cd.getName().asString()) + ", " + statementCount +
+                    ", " + methodeBC + "\n";
         }
     }
 
-    //Implementation of the line visitor for classes
+    /**
+     * Nested class made to visit classes declaration
+     */
     private static class ClassesLineCounter extends VoidVisitorAdapter<Void> {
 
         private String path;
 
+        /**
+         * constructor
+         * @param path Path of the project
+         */
         public ClassesLineCounter(String path) {
             this.path = path;
         }
 
-        public int class_LOC(String[] lines) {
-            return LineCalculator.LOC(lines);
-        }
-
-        public int class_CLOC(String[] lines) {
-            return LineCalculator.CLOC(lines);
-        }
-
-        //NEED TESTING
+        /**
+         * Calculated the DC for a class declaration
+         * @param lines array of strings containing lines of java code
+         * @return Return the DC of a class declaration
+         */
         public float class_DC(String[] lines) {
-            return (float)class_CLOC(lines) / class_LOC(lines);
+            return (float)LineCalculator.CLOC(lines) / LineCalculator.LOC(lines);
         }
 
-        //NEED TESTING
+        /**
+         * Calculate the WMC of a class declaration
+         * @param cd A class declaration
+         * @return Returns the WMC of a class declaration
+         */
         public int WMC(ClassOrInterfaceDeclaration cd) {
             int wmc = 0;
             List<MethodDeclaration> methods = cd.getMethods();
@@ -189,21 +244,37 @@ public class LineCalculator {
             return wmc;
         }
 
-        //NEED TESTING
+        /**
+         * Gets the general info for the csv file of classes
+         * @param lines array of strings containing lines of java code
+         * @param className The name of the class
+         * @return Returns the info for the csv
+         */
         public String printInfo(String[] lines, String className) {
-            return this.path + ", " + className + ", " + class_LOC(lines) + ", " + class_CLOC(lines) + ", " + class_DC(lines);
+            return this.path + ", " + className + ", " + LineCalculator.LOC(lines) +
+                    ", " + LineCalculator.CLOC(lines) +
+                    ", " + class_DC(lines);
         }
 
-        //Visit the classes or interfaces declaration
+        /**
+         * Override the API visitor to visit class or interface declaration
+         * @param cd a class or interface declaration
+         * @param arg Null argument
+         */
         @Override
         public void visit(ClassOrInterfaceDeclaration cd, Void arg) {
             super.visit(cd, arg);
             String[] lines = cd.toString().split("\n");
             int wmc = WMC(cd);
-            classCSV += printInfo(lines, cd.getNameAsString()) + ", " + wmc + ", " + class_DC(lines)/wmc + "\n";
+            float classeBC = class_DC(lines)/wmc;
+            classCSV += printInfo(lines, cd.getNameAsString()) + ", " + wmc + ", " + classeBC + "\n";
         }
 
-        //Visit the enumerators declarations
+        /**
+         * Override the API visitor to visit enumeration declaration
+         * @param ed A enumerator declaration
+         * @param arg Null argument
+         */
         @Override
         public void visit(EnumDeclaration ed, Void arg) {
             super.visit(ed, arg);

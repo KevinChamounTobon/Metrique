@@ -14,7 +14,7 @@ import java.nio.file.Paths;
 import java.util.List;
 
 /**
- * authors: Kevin Chamoun-Tobon & Christian El-Hamaoui
+ *Authors: Kevin Chamoun-Tobon & Christian El-Hamaoui
  *
  * Static class for metric calculation
  */
@@ -25,7 +25,7 @@ public class LineCalculator {
 
     public static void main(String[] args) throws IOException {
 
-        Path projectPath = Paths.get("/home/unknown/Documents/projects/Flappy Ghost");
+        Path projectPath = Paths.get(args[0]);
         ProjectRoot projectRoot = new ParserCollectionStrategy().collect(projectPath);
         List<SourceRoot>  srcRoots = projectRoot.getSourceRoots();
 
@@ -33,6 +33,8 @@ public class LineCalculator {
 
         write("classes.csv", classCSV);
         write("methodes.csv", methodCSV);
+
+        System.out.println("CSV files built");
     }
 
     /**
@@ -73,10 +75,10 @@ public class LineCalculator {
      * @return if a line is a comment
      */
     private static boolean isComment(String line) {
-        return  line.matches("^\\/\\/.*") ||  //Match single line comment
-                line.matches("^\\/\\*.*") ||  //Match block comment
+        return  line.matches("^//.*") ||  //Match single line comment
+                line.matches("^/\\*.*") ||  //Match block comment
                 line.matches("^\\*.*")    ||  //Match block comment
-                line.matches("^\\/\\*\\*.*"); //Match block comment
+                line.matches("^/\\*\\*.*"); //Match block comment
     }
 
     /**
@@ -102,6 +104,10 @@ public class LineCalculator {
      * @throws IOException If file not found
      */
     public static void parseJavaProject(List<SourceRoot> srcRoots) throws IOException {
+
+        classCSV +=  "chemin, class, classe_LOC, classe_CLOC, classe_DC, WMC, classe_BC\n";
+        methodCSV += "chemin, class, methode, methode_LOC, methode_CLOC, methode_DC, CC, methode_BC\n";
+
         for (SourceRoot sourceRoot: srcRoots) {
             sourceRoot.tryToParse();
             List<CompilationUnit> compilations = sourceRoot.getCompilationUnits();
@@ -111,13 +117,9 @@ public class LineCalculator {
                 //Create visitor for classes
                 VoidVisitor<?> classLinesVisitor = new ClassesLineCounter(n.getStorage().get().getPath().toString());
                 //Call visit method for classes
-                classCSV +=  "chemin, class, classe_LOC, classe_CLOC, classe_DC, WMC, classe_BC\n";
                 classLinesVisitor.visit(n, null);
-                classCSV += "\n";
                 //Call visit method for methods
-                methodCSV += "chemin, class, methode, methode_LOC, methode_CLOC, methode_DC, CC, methode_BC\n";
                 methodLinesVisitor.visit(n, null);
-                methodCSV += "\n";
             }
         }
     }
@@ -127,14 +129,17 @@ public class LineCalculator {
      */
     private static class MethodsLineCounter extends VoidVisitorAdapter<Void> {
 
-        private String path = "";
+        private String path;
+        private String className;
 
         /**
          * Constructor
          * @param path Path of the project
          */
         public MethodsLineCounter(String path) {
+            String[] splittedPath = path.split("/");
             this.path = path;
+            this.className = splittedPath[splittedPath.length-1].replace(".java", "");
         }
 
         /**
@@ -153,7 +158,7 @@ public class LineCalculator {
          * @return Returns the info for the csv
          */
         public String printInfo(String[] lines,String methodName) {
-            return this.path + ", class, " + methodName + ", " + LineCalculator.LOC(lines)  + ", "
+            return this.path + "," +  this.className +", " + methodName + ", " + LineCalculator.LOC(lines)  + ", "
                     + LineCalculator.CLOC(lines) + ", "
                     + method_DC(lines);
         }
@@ -168,10 +173,10 @@ public class LineCalculator {
             super.visit(md, arg);
             String[] lines = md.toString().split("\n");
             String methodeName = md.getName().asString();
-            String methodeParam = "";
+            StringBuilder methodeParam = new StringBuilder();
 
             for (Parameter type : md.getParameters()) {
-                methodeParam += "_" + type.getTypeAsString();
+                methodeParam.append("_").append(type.getTypeAsString());
             }
 
             if(md.getBody().isPresent()) {
